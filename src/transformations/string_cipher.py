@@ -31,8 +31,11 @@ class StringCipher:
         self.ciphered_count: int = 0
 
     def apply(self) -> str:
+        fstring_string_indices = self._find_strings_inside_fstrings()
         for tok in self.tokens.tokens:
             if tok.type != PythonLexer.STRING:
+                continue
+            if tok.tokenIndex in fstring_string_indices:
                 continue
             text = tok.text
             if self._should_skip(text):
@@ -47,6 +50,24 @@ class StringCipher:
             self.rewriter.replaceSingleToken(tok, replacement)
             self.ciphered_count += 1
         return self.rewriter.getDefaultText()
+
+    def _find_strings_inside_fstrings(self) -> set[int]:
+        """Retorna índices de tokens STRING anidados dentro de f-strings.
+
+        Los strings como 'key' en f"{d['key']}" son tokens STRING normales,
+        pero cifrarlos rompe la sintaxis del f-string exterior.
+        """
+        inside: set[int] = set()
+        depth = 0
+        for tok in self.tokens.tokens:
+            if tok.type == PythonLexer.FSTRING_START:
+                depth += 1
+            elif tok.type == PythonLexer.FSTRING_END:
+                if depth > 0:
+                    depth -= 1
+            elif tok.type == PythonLexer.STRING and depth > 0:
+                inside.add(tok.tokenIndex)
+        return inside
 
     def _should_skip(self, text: str) -> bool:
         """Saltar raw strings y byte strings (f-strings ya no entran porque
