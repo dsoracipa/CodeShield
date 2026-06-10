@@ -29,6 +29,16 @@ class Deobfuscator:
             s.obfuscated: s.original for s in self.table.all_symbols()
         }
 
+    @classmethod
+    def from_dict(cls, symbol_map_dict: dict) -> 'Deobfuscator':
+        """Construye una instancia directamente desde un dict (sin leer archivo)."""
+        instance = object.__new__(cls)
+        instance.table = SymbolTable.from_dict(symbol_map_dict)
+        instance._reverse_map = {
+            s.obfuscated: s.original for s in instance.table.all_symbols()
+        }
+        return instance
+
     def deobfuscate_source(self, source: str) -> str:
         source = self._restore_strings(source)
         source = self._restore_identifiers(source)

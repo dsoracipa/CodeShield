@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "symbols": [
+    {
+      "original": "calcular_promedio",
+      "obfuscated": "_f0000",
+      "kind": "function"
+    },
+    {
+      "original": "numeros",
+      "obfuscated": "_p0001",
+      "kind": "parameter"
+    },
+    {
+      "original": "total",
+      "obfuscated": "_v0002",
+      "kind": "variable"
+    },
+    {
+      "original": "cantidad",
+      "obfuscated": "_v0003",
+      "kind": "variable"
+    },
+    {
+      "original": "valores",
+      "obfuscated": "_v0004",
+      "kind": "variable"
+    },
+    {
+      "original": "resultado",
+      "obfuscated": "_v0005",
+      "kind": "variable"
+    }
+  ]
+}

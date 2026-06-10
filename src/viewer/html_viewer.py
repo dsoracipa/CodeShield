@@ -7,6 +7,7 @@ HTML se abre directamente en cualquier navegador.
 import html
 import json
 from pathlib import Path
+from typing import Optional
 
 from src.stats.obfuscation_stats import ObfuscationStats
 
@@ -131,6 +132,31 @@ th {{
 td.original {{ color: #6ab7ff; font-family: monospace; }}
 td.obfuscated {{ color: #ff9a6a; font-family: monospace; }}
 td.kind {{ color: #aaa; font-size: 11px; text-transform: uppercase; }}
+.verification-banner {{
+    padding: 14px 20px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    font-family: Consolas, "Courier New", monospace;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}}
+.verification-banner.pass {{ background: #1a3a1a; border: 1px solid #2d6a2d; color: #9bff7a; }}
+.verification-banner.fail {{ background: #3a1a1a; border: 1px solid #6a2d2d; color: #ff7a7a; }}
+.verification-banner.skip {{ background: #2a2a2a; border: 1px solid #444; color: #8b949e; }}
+.diff-block {{
+    margin-top: 10px;
+    background: #0d1117;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: pre;
+    overflow-x: auto;
+}}
+.diff-add {{ color: #9bff7a; }}
+.diff-rem {{ color: #ff7a7a; }}
+details summary {{ cursor: pointer; user-select: none; }}
 .footer {{
     margin-top: 32px;
     text-align: center;
@@ -167,6 +193,8 @@ td.kind {{ color: #aaa; font-size: 11px; text-transform: uppercase; }}
   </div>
 </div>
 
+{verification_banner}
+
 <div class="comparison">
   <div class="panel">
     <div class="panel-header">
@@ -202,11 +230,50 @@ td.kind {{ color: #aaa; font-size: 11px; text-transform: uppercase; }}
 '''
 
 
+def _build_verification_banner(vr) -> str:
+    if vr is None:
+        return ''
+    if vr.skipped:
+        reason = html.escape(vr.skip_reason or '')
+        return f'<div class="verification-banner skip">&#8212; Verificacion omitida: {reason}</div>'
+    if vr.passed:
+        t_orig = f'{vr.execution_time_original:.3f}s'
+        t_obf = f'{vr.execution_time_obfuscated:.3f}s'
+        return (
+            f'<div class="verification-banner pass">'
+            f'&#10003; Comportamiento verificado &mdash; stdout identico'
+            f' &nbsp;|&nbsp; original: {t_orig} &nbsp; ofuscado: {t_obf}'
+            f'</div>'
+        )
+    diff_lines = vr.diff_lines or []
+    diff_count = len([l for l in diff_lines if l.startswith(('+', '-')) and not l.startswith(('+++', '---'))])
+    diff_html_parts = []
+    for line in diff_lines[:40]:
+        line = line.rstrip('\n')
+        escaped = html.escape(line)
+        if line.startswith('+') and not line.startswith('+++'):
+            diff_html_parts.append(f'<span class="diff-add">{escaped}</span>')
+        elif line.startswith('-') and not line.startswith('---'):
+            diff_html_parts.append(f'<span class="diff-rem">{escaped}</span>')
+        else:
+            diff_html_parts.append(escaped)
+    diff_block = '\n'.join(diff_html_parts)
+    return (
+        f'<div class="verification-banner fail">'
+        f'<details>'
+        f'<summary>&#10007; Verificacion fallida &mdash; stdout difiere en {diff_count} lineas (click para ver diff)</summary>'
+        f'<div class="diff-block">{diff_block}</div>'
+        f'</details>'
+        f'</div>'
+    )
+
+
 def generate_comparison_html(original_path: Path,
                               obfuscated_path: Path,
                               map_path: Path,
                               output_path: Path,
-                              stats: ObfuscationStats) -> None:
+                              stats: ObfuscationStats,
+                              verification_result=None) -> None:
     """Genera el archivo HTML de comparativa lado a lado."""
     original = original_path.read_text(encoding='utf-8')
     obfuscated = obfuscated_path.read_text(encoding='utf-8')
@@ -234,6 +301,7 @@ def generate_comparison_html(original_path: Path,
         original_code=html.escape(original),
         obfuscated_code=html.escape(obfuscated),
         symbol_rows='\n      '.join(rows) if rows else '<tr><td colspan="3" style="color:#666;">(sin simbolos)</td></tr>',
+        verification_banner=_build_verification_banner(verification_result),
     )
 
     output_path.write_text(rendered, encoding='utf-8')

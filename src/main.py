@@ -16,9 +16,16 @@ import json
 import sys
 from pathlib import Path
 
+try:
+    from colorama import init as _colorama_init
+    _colorama_init()
+except ImportError:
+    pass
+
 from src.obfuscator import Obfuscator, ObfuscatorConfig
 from src.deobfuscator import Deobfuscator
 from src.viewer.html_viewer import generate_comparison_html
+from src.verifier.invariance_checker import InvarianceChecker, format_result
 
 
 def cmd_obfuscate(args: argparse.Namespace) -> int:
@@ -71,9 +78,26 @@ def cmd_obfuscate(args: argparse.Namespace) -> int:
         for s in data.get('symbols', []):
             print(f"  {s['original']:30} -> {s['obfuscated']:10} [{s['kind']}]")
 
+    verification_result = None
+    if args.verify:
+        checker = InvarianceChecker(timeout=args.verify_timeout)
+        verify_args = args.verify_args.split() if args.verify_args else None
+        verification_result = checker.verify(
+            inp, output,
+            args=verify_args,
+            stdin_data=args.verify_stdin,
+        )
+        print(format_result(verification_result))
+        if not verification_result.passed and not verification_result.skipped:
+            try:
+                from colorama import Fore, Style
+                print(f"{Fore.YELLOW}ADVERTENCIA: la ofuscacion puede haber alterado el comportamiento del programa.{Style.RESET_ALL}")
+            except ImportError:
+                print("ADVERTENCIA: la ofuscacion puede haber alterado el comportamiento del programa.")
+
     if args.html:
         html_path = Path(args.html_output) if args.html_output else inp.with_name(inp.stem + '_comparison.html')
-        generate_comparison_html(inp, output, map_path, html_path, stats)
+        generate_comparison_html(inp, output, map_path, html_path, stats, verification_result=verification_result)
         print(f"OK Comparativa HTML: {html_path}")
 
     return 0
@@ -124,6 +148,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_obf.add_argument('--dead-code-seed', type=int, default=None, help='Seed para reproducibilidad')
     p_obf.add_argument('--html', action='store_true', help='Generar comparativa HTML')
     p_obf.add_argument('--html-output', default=None, help='Ruta del HTML')
+    p_obf.add_argument('--verify', action='store_true', help='Verificar invariancia semantica despues de ofuscar')
+    p_obf.add_argument('--verify-timeout', type=float, default=10.0, help='Timeout en segundos para la verificacion (default: 10.0)')
+    p_obf.add_argument('--verify-args', default=None, help='Argumentos a pasar al script durante verificacion')
+    p_obf.add_argument('--verify-stdin', default=None, help='Texto a pasar como stdin durante verificacion')
     p_obf.add_argument('-v', '--verbose', action='store_true')
     p_obf.set_defaults(func=cmd_obfuscate)
 
